@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pqn"
+version = "0.0.1"
+authors = [
+  { name="Taha Shieenavaz", email="tahashieenavaz@gmail.com" },
+]
+description = "A custom implementation of PQN deep reinforcement learning algorithm."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["numpy"]
+keywords = ["reinforcement learning", "pqn", "dnq", "distributed learning"]
+license = { file = "LICENSE" }
+urls = { Homepage="https://github.com/tahashieenavaz/pqn", Repository="https://github.com/tahashieenavaz/pqn", Documentation="https://github.com/tahashieenavaz/pqn#readme" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+pqn = ["*.md", "*.txt"]
