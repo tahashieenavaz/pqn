@@ -15,4 +15,6 @@ from pqn import PQN
 
 agent = PQN()
 agent.train(environment="Pong-v5", seed=100)
+agent.log(directory="results")
+agent.save(directory="models")
 ```
