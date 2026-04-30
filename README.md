@@ -1,5 +1,9 @@
 # PQN
 
+<div align="center">
+    <img src="https://raw.githubusercontent.com/tahashieenavaz/pqn/main/images/pqn.png" width="95%" align="center" />
+</div>
+
 An custom implementation of PQN deep reinforcement learning algorithm.
 
 ## Installation
