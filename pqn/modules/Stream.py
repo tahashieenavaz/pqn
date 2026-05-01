@@ -13,6 +13,7 @@ class Stream(torch.nn.Module):
         super().__init__()
         self.stream = torch.nn.Sequential(
             torch.nn.Linear(input_dimension, hidden_dimension),
+            torch.nn.LayerNorm(hidden_dimension),
             activation(inplace=True),
             torch.nn.Linear(hidden_dimension, output_dimension),
         )
