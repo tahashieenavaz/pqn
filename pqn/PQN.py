@@ -188,6 +188,8 @@ class PQN:
         filename = self.__build_result_filename()
         payload = self.__build_result_payload()
         funnel(f"{directory_path}/{filename}", payload)
+        pass
 
     def save(self, *, directory: str = "models"):
+        directory_path = self.__create_directory(directory).strip("/").strip()
         pass
