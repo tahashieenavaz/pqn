@@ -3,6 +3,7 @@ import numpy
 import envpool
 import os
 from types import SimpleNamespace
+from typing import Tuple
 from baloot import seed_everything
 from baloot import acceleration_device
 from .constants import PQNOptimizerType
@@ -109,6 +110,36 @@ class PQN:
                 "test": test_environments,
             }
         )
+
+    def __step_environments(
+        train_env, test_env, actions: numpy.ndarray, num_train: int
+    ) -> Tuple[numpy.ndarray, ...]:
+        train_action, test_action = actions[:num_train], actions[num_train:]
+
+        n_obs_train, rew_train, term_train, trunc_train, info_train = train_env.step(
+            train_action
+        )
+        n_obs_test, rew_test, term_test, trunc_test, info_test = test_env.step(
+            test_action
+        )
+
+        next_observation = numpy.concatenate([n_obs_train, n_obs_test], axis=0)
+        rewards = numpy.concatenate([rew_train, rew_test], axis=0)
+        terms = numpy.concatenate([term_train, term_test], axis=0)
+        truncs = numpy.concatenate([trunc_train, trunc_test], axis=0)
+        terminations = numpy.logical_or(terms, truncs)
+
+        infos = {}
+        for k, v_train in info_train.items():
+            v_test = info_test.get(k)
+            if isinstance(v_train, numpy.ndarray) and isinstance(v_test, numpy.ndarray):
+                infos[k] = (
+                    numpy.stack([v_train, v_test])
+                    if v_train.ndim == 0
+                    else numpy.concatenate([v_train, v_test], axis=0)
+                )
+
+        return next_observation, rewards, terminations, infos
 
     def train(self, *, environment: str, seed: int):
         seed_everything(seed)
