@@ -1,11 +1,10 @@
 import torch
 from typing import Type
-from torch.nn import Module
 from .LayerNorm2d import LayerNorm2d
 
 
 class NatureDQNEncoder(torch.nn.Module):
-    def __init__(self, *, activation: Type[Module] = torch.nn.ReLU):
+    def __init__(self, *, activation: Type[torch.nn.Module] = torch.nn.ReLU):
         super().__init__()
         self.stream = torch.nn.Sequential(
             torch.nn.Conv2d(4, 32, kernel_size=8, stride=4, padding=0, bias=False),
