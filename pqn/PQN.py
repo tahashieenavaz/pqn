@@ -22,7 +22,7 @@ class PQN:
             setattr(self, key, value)
 
     def __initialize_optimizer(self):
-        pass
+        self._optimizer = optimizer_map[self.optimizer]
 
     def train(self, *, environment: str, seed: int):
         pass
