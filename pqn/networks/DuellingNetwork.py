@@ -1,6 +1,7 @@
 import torch
 from ..modules import Stream
 from ..modules import NatureDQNEncoder
+from ..common import LinearEpsilon
 
 
 class DuellingNetwork(torch.nn.Module):
@@ -15,6 +16,8 @@ class DuellingNetwork(torch.nn.Module):
             hidden_dimension=512,
             output_dimension=action_dimension,
         )
+        self.epsilon_greedy = True
+        self.epsilon = LinearEpsilon()
 
     def get_value(self, features: torch.Tensor) -> torch.Tensor:
         return self.value(features)
