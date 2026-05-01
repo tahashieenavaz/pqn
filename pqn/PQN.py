@@ -157,8 +157,8 @@ class PQN:
 
         pass
 
-    def log(self, *, directory: str):
+    def log(self, *, directory: str = "results"):
         pass
 
-    def save(self, *, directory: str):
+    def save(self, *, directory: str = "models"):
         pass
