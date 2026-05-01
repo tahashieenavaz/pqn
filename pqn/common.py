@@ -25,20 +25,22 @@ class RolloutBuffer:
         action_dimension: int,
         steps_per_update: int,
         total_environments: int,
+        train_environments: int,
         device,
     ):
-        self.obs = torch.empty(
+        self.train_environments = train_environments
+        self.observations = torch.empty(
             (steps_per_update, total_environments) + observation_shape,
             dtype=torch.uint8,
             device=device,
         )
-        self.act = torch.empty(
+        self.actions = torch.empty(
             (steps_per_update, total_environments), dtype=torch.int64, device=device
         )
-        self.rew = torch.empty(
+        self.rewards = torch.empty(
             (steps_per_update, total_environments), dtype=torch.float32, device=device
         )
-        self.done = torch.empty(
+        self.terminations = torch.empty(
             (steps_per_update, total_environments), dtype=torch.float32, device=device
         )
         self.q = torch.empty(
@@ -50,25 +52,25 @@ class RolloutBuffer:
     def insert(
         self,
         step: int,
-        obs: torch.Tensor,
-        act: torch.Tensor,
-        rew: torch.Tensor,
-        done: torch.Tensor,
+        observation: torch.Tensor,
+        action: torch.Tensor,
+        reward: torch.Tensor,
+        termination: torch.Tensor,
         q: torch.Tensor,
     ):
-        self.obs[step] = obs
-        self.act[step] = act
-        self.rew[step] = rew
-        self.done[step] = done
+        self.observations[step] = observation
+        self.actions[step] = action
+        self.rewards[step] = reward
+        self.terminations[step] = termination
         self.q[step] = q
 
     def get_flattened_train_data(
         self, targets: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        observation_shape = self.obs.shape[2:]
-        flat_obs = self.obs[:, : self.cfg.num_train_envs].reshape(
+        observation_shape = self.observation.shape[2:]
+        flat_observation = self.observation[:, : self.train_environments].reshape(
             (-1,) + observation_shape
         )
-        flat_act = self.act[:, : self.cfg.num_train_envs].reshape(-1)
-        flat_tgt = targets[:, : self.cfg.num_train_envs].reshape(-1)
-        return flat_obs, flat_act, flat_tgt
+        flat_actions = self.act[:, : self.train_environments].reshape(-1)
+        flat_targets = targets[:, : self.train_environments].reshape(-1)
+        return flat_observation, flat_actions, flat_targets
