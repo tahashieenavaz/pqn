@@ -116,18 +116,31 @@ class PQN:
     ) -> Tuple[numpy.ndarray, ...]:
         train_action, test_action = actions[:num_train], actions[num_train:]
 
-        n_obs_train, rew_train, term_train, trunc_train, info_train = train_env.step(
-            train_action
-        )
-        n_obs_test, rew_test, term_test, trunc_test, info_test = test_env.step(
-            test_action
-        )
+        (
+            next_train_observation,
+            train_reward,
+            train_termination,
+            train_truncation,
+            info_train,
+        ) = train_env.step(train_action)
 
-        next_observation = numpy.concatenate([n_obs_train, n_obs_test], axis=0)
-        rewards = numpy.concatenate([rew_train, rew_test], axis=0)
-        terms = numpy.concatenate([term_train, term_test], axis=0)
-        truncs = numpy.concatenate([trunc_train, trunc_test], axis=0)
-        terminations = numpy.logical_or(terms, truncs)
+        (
+            next_test_observation,
+            test_reward,
+            test_terminations,
+            test_truncations,
+            info_test,
+        ) = test_env.step(test_action)
+
+        next_observation = numpy.concatenate(
+            [next_train_observation, next_test_observation], axis=0
+        )
+        rewards = numpy.concatenate([train_reward, test_reward], axis=0)
+        _terminations = numpy.concatenate(
+            [train_termination, test_terminations], axis=0
+        )
+        _truncations = numpy.concatenate([train_truncation, test_truncations], axis=0)
+        terminations = numpy.logical_or(_terminations, _truncations)
 
         infos = {}
         for k, v_train in info_train.items():
