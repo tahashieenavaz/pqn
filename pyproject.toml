@@ -19,7 +19,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["numpy", "torch", "envpool"]
+dependencies = ["numpy", "torch", "envpool", "baloot"]
 keywords = ["reinforcement learning", "pqn", "dnq", "distributed learning"]
 license = { file = "LICENSE" }
 urls = { Homepage="https://github.com/tahashieenavaz/pqn", Repository="https://github.com/tahashieenavaz/pqn", Documentation="https://github.com/tahashieenavaz/pqn#readme" }
