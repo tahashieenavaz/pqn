@@ -13,5 +13,5 @@ class QNetwork(torch.nn.Module):
         self.epsilon = LinearEpsilon()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        features = self.phi(x)
+        features = self.phi(x / 255.0)
         return self.q(features)

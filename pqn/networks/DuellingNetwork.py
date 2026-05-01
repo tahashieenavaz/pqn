@@ -28,5 +28,5 @@ class DuellingNetwork(torch.nn.Module):
         return advantage
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        features = self.phi(x)
+        features = self.phi(x / 255.0)
         return self.get_value(features) + self.get_advantage(features)
