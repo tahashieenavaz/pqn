@@ -2,8 +2,10 @@ import torch
 import numpy
 import envpool
 import os
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Tuple
+from baloot import funnel
 from baloot import seed_everything
 from baloot import acceleration_device
 from .constants import PQNOptimizerType
@@ -170,8 +172,22 @@ class PQN:
 
         pass
 
-    def log(self, *, directory: str = "results"):
+    def __create_directory(self, directory_path: str) -> str:
+        directory_path = directory_path.replace(".", "/")
+        Path(directory_path).mkdir(exist_ok=True, parents=True)
+        return directory_path
+
+    def __build_result_payload(self) -> dict:
+        return {}
+
+    def __build_result_filename(self) -> str:
         pass
+
+    def log(self, directory: str = "results") -> None:
+        directory_path = self.__create_directory(directory).strip("/").strip()
+        filename = self.__build_result_filename()
+        payload = self.__build_result_payload()
+        funnel(f"{directory_path}/{filename}", payload)
 
     def save(self, *, directory: str = "models"):
         pass
