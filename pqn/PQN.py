@@ -193,6 +193,7 @@ class PQN:
             observation_shape=observation_shape,
             device=self.device,
         )
+        scaler = torch.amp.GradScaler("cuda")
 
         pass
 
