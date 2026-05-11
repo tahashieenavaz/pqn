@@ -55,7 +55,6 @@ class PQN:
 
     def __initialize_derivative_parameters(self):
         self.total_environments = self.train_environments + self.test_environments
-
         self.total_cpu = os.cpu_count()
         self.train_cpu_count = int(self.train_cpu_distribution * self.total_cpu)
         self.test_cpu_count = self.total_cpu - self.train_cpu_count
@@ -188,7 +187,12 @@ class PQN:
         observations = torch.as_tensor(
             observations, dtype=torch.uint8, device=self.device
         )
-        buffer = PQNBuffer()
+        buffer = PQNBuffer(
+            steps_per_update=self.steps_per_update,
+            total_environments=self.total_environments,
+            observation_shape=observation_shape,
+            device=self.device,
+        )
 
         pass
 
