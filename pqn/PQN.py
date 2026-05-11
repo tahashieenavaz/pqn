@@ -12,6 +12,7 @@ from .constants import PQNOptimizerType
 from .constants import NetworkStringType
 from .maps import optimizer_map
 from .maps import network_map
+from .PQNBuffer import PQNBuffer
 
 
 class PQN:
@@ -184,6 +185,10 @@ class PQN:
         train_observation, _ = environments.train.reset()
         test_observation, _ = environments.test.reset()
         observations = numpy.concatenate([train_observation, test_observation], axis=0)
+        observations = torch.as_tensor(
+            observations, dtype=torch.uint8, device=self.device
+        )
+        buffer = PQNBuffer()
 
         pass
 
