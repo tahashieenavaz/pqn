@@ -1,5 +1,6 @@
 import torch
 from typing import Tuple
+from functools import wraps
 
 
 class LinearEpsilon:
@@ -7,13 +8,17 @@ class LinearEpsilon:
         self.top = 1.0
         self.target = target
         self.ratio = ratio
+        self.delta = self.top - self.target
 
     def get(self, frames: int, total_frames: int) -> float:
         decay_duration = total_frames * self.ratio
-        if decay_duration == 0:
+
+        if decay_duration <= 0:
             return self.top
+
         return max(
-            self.target, self.top - (frames / decay_duration) * (self.top - self.target)
+            self.target,
+            self.top - (frames / decay_duration) * self.delta,
         )
 
 
@@ -74,3 +79,18 @@ class RolloutBuffer:
         flat_actions = self.act[:, : self.train_environments].reshape(-1)
         flat_targets = targets[:, : self.train_environments].reshape(-1)
         return flat_observation, flat_actions, flat_targets
+
+
+def autocast():
+    def decorator(callback):
+        @wraps(callback)
+        def wrapper(self, *args, **kwargs):
+            with torch.autocast(
+                device_type=self.device.type,
+                dtype=torch.float16,
+            ):
+                return callback(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator

@@ -8,8 +8,11 @@ from typing import Tuple
 from baloot import funnel
 from baloot import seed_everything
 from baloot import acceleration_device
+from .common import LinearEpsilon
+from .common import autocast
 from .constants import PQNOptimizerType
 from .constants import NetworkStringType
+from .functions import epsilon_greedy_vectorized
 from .maps import optimizer_map
 from .maps import network_map
 from .PQNBuffer import PQNBuffer
@@ -20,8 +23,8 @@ class PQN:
         self,
         network: NetworkStringType = "q",
         return_lambda: float = 0.65,
-        frame_skip: int = 4,
         frames: int = 200_000_000,
+        frame_skip: int = 4,
         minibatches: int = 32,
         steps_per_update: int = 32,
         lr: float = 0.00025,
@@ -35,6 +38,7 @@ class PQN:
         train_environments: int = 128,
         test_environments: int = 8,
         train_cpu_distribution: float = 0.9,
+        epsilon_greedy: bool = True,
     ):
         params = locals()
         params.pop("self")
@@ -45,6 +49,10 @@ class PQN:
         self.__initialize_hyper_parameters(params)
         self.__initialize_derivative_parameters()
         self.__initialize_device()
+        self.__initialize_epsilon()
+
+    def __initialize_epsilon(self):
+        self._epsilon = LinearEpsilon()
 
     def __set_precision(self):
         torch.set_float32_matmul_precision("high")
@@ -58,7 +66,10 @@ class PQN:
         self.total_cpu = os.cpu_count()
         self.train_cpu_count = int(self.train_cpu_distribution * self.total_cpu)
         self.test_cpu_count = self.total_cpu - self.train_cpu_count
-        self.environment_steps = int(self.frames / self.frame_skip)
+        self.effective_frames = int(self.frames / self.frame_skip)
+        self.total_updates = int(
+            self.effective_frames / self.train_environments / self.steps_per_update
+        )
 
     def __initialize_device(self):
         self.device = acceleration_device()
@@ -184,8 +195,13 @@ class PQN:
         train_observation, _ = environments.train.reset()
         test_observation, _ = environments.test.reset()
         observations = numpy.concatenate([train_observation, test_observation], axis=0)
-        observations = torch.as_tensor(
-            observations, dtype=torch.uint8, device=self.device
+        observations = torch.from_numpy(observations, dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
+        epsilon_vector = torch.zeros(
+            self.train_environments + self.test_environments,
+            dtype=torch.float32,
+            device=self.device,
         )
         buffer = PQNBuffer(
             steps_per_update=self.steps_per_update,
@@ -195,7 +211,35 @@ class PQN:
         )
         scaler = torch.amp.GradScaler("cuda")
 
-        pass
+        for update in range(self.total_updates):
+            self._network.eval()
+            for step in range(self.steps_per_update):
+                training_epsilon = self._epsilon.get(
+                    frames=overall_frame_count, total_frames=self.effective_frames
+                )
+                epsilon_vector[: self.train_environments].fill_(training_epsilon)
+                q_values = self.__get_q_values(observations=observations)
+                actions = self.__get_actions(
+                    q_values=q_values, epsilon_vector=epsilon_vector
+                )
+                train_actions = actions[: self.train_environments]
+                test_actions = actions[self.test_environments :]
+                pass
+
+        environments.train.close()
+        environments.test.close()
+
+    @autocast()
+    @torch.inference_mode()
+    def __get_actions(self, q_values: torch.Tensor, epsilon_vector: torch.Tensor):
+        if self.epsilon_greedy:
+            return epsilon_greedy_vectorized(q_values, epsilon_vector)
+        return q_values.argmax(dim=-1).cpu().numpy()
+
+    @autocast()
+    @torch.inference_mode()
+    def __get_q_values(self, observations: torch.Tensor) -> torch.Tensor:
+        return self._network(observations)
 
     def __create_directory(self, directory_path: str) -> str:
         directory_path = directory_path.replace(".", "/")
