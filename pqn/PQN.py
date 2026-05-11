@@ -63,6 +63,16 @@ class PQN:
     def __initialize_device(self):
         self.device = acceleration_device()
 
+    def __get_dummy_input(self):
+        return torch.randn(1, 4, 84, 84, device=self.device)
+
+    @torch.inference_mode()
+    def __network_dummy_pass(self):
+        self._network(self.__get_dummy_input())
+
+    def __compile_network(self):
+        self._network = torch.compile(self._network)
+
     @torch.inference_mode()
     def __initialize_network(self, action_dimension: int):
         if self.network not in network_map:
@@ -70,8 +80,8 @@ class PQN:
 
         network_instance = network_map[self.network]
         self._network = network_instance(action_dimension=action_dimension)
-        self._network = torch.compile(self._network)
-        self._network(torch.randn(1, 4, 84, 84))
+        self.__network_dummy_pass()
+        self.__compile_network()
 
     def __initialize_optimizer(self):
         if self.optimizer not in optimizer_map:
