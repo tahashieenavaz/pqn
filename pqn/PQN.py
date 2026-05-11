@@ -35,13 +35,18 @@ class PQN:
         test_environments: int = 8,
         train_cpu_distribution: float = 0.9,
     ):
-        torch.set_float32_matmul_precision("high")
-
         params = locals()
         params.pop("self")
+        self.__initialize(params)
+        self.__set_precision()
+
+    def __initialize(self, params):
         self.__initialize_hyper_parameters(params)
         self.__initialize_derivative_parameters()
         self.__initialize_device()
+
+    def __set_precision(self):
+        torch.set_float32_matmul_precision("high")
 
     def __initialize_hyper_parameters(self, params: dict):
         for key, value in params:
