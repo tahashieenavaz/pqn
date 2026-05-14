@@ -8,12 +8,12 @@ class PQNBuffer:
         steps_per_update: int,
         total_environments: int,
         observation_shape: tuple,
-        device,
         action_dimension: int,
+        device,
     ):
         self.observations = torch.empty(
             (steps_per_update, total_environments) + observation_shape,
-            dtype=torch.uint8,
+            dtype=torch.float32,
             device=device,
         )
         self.actions = torch.empty(
@@ -31,9 +31,9 @@ class PQNBuffer:
             device=device,
         )
 
-    def insert(self, step: int, action, reward, termination, q, observation):
-        self.actions[step] = action
-        self.rewards[step] = reward
-        self.terminations[step] = termination
-        self.observation[step] = observation
-        self.q[step] = q
+    def insert(self, step: int, observations, actions, rewards, terminations, q_values):
+        self.observations[step] = observations
+        self.actions[step] = actions
+        self.rewards[step] = rewards
+        self.terminations[step] = terminations
+        self.q[step] = q_values

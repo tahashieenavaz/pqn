@@ -1,8 +1,9 @@
 import torch
 
 
-@torch.jit.script
+@torch.compile(mode="reduce-overhead")
 def lambda_returns(
+    *,
     rewards: torch.Tensor,
     terminations: torch.Tensor,
     next_q: torch.Tensor,
@@ -10,15 +11,12 @@ def lambda_returns(
     return_lambda: float,
 ) -> torch.Tensor:
     T = rewards.size(0)
-    out = torch.zeros_like(rewards)
-    ret = rewards[-1] + gamma * next_q[-1] * (1 - terminations[-1])
-    out[-1] = ret
-
+    returns = torch.zeros_like(rewards)
+    discount = gamma * (1.0 - terminations)
+    q_weighted = (1.0 - return_lambda) * next_q
+    _return = rewards[-1] + discount[-1] * next_q[-1]
+    returns[-1] = _return
     for t in range(T - 2, -1, -1):
-        bootstrap = next_q[t]
-        td_target = rewards[t] + gamma * (1 - terminations[t]) * bootstrap
-        ret = td_target + gamma * return_lambda * (1 - terminations[t]) * (
-            ret - bootstrap
-        )
-        out[t] = ret
-    return out
+        _return = rewards[t] + discount[t] * (q_weighted[t] + return_lambda * _return)
+        returns[t] = _return
+    return returns
