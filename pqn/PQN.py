@@ -121,6 +121,7 @@ class PQN:
             steps_per_update=self.steps_per_update,
             total_environments=self.total_environments,
             observation_shape=observation_shape,
+            action_dimension=environments.train.action_space.n,
             device=self.device,
         )
         scaler = torch.amp.GradScaler("cuda")
