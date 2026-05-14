@@ -22,65 +22,6 @@ class LinearEpsilon:
         )
 
 
-class RolloutBuffer:
-    def __init__(
-        self,
-        *,
-        observation_shape: tuple,
-        action_dimension: int,
-        steps_per_update: int,
-        total_environments: int,
-        train_environments: int,
-        device,
-    ):
-        self.train_environments = train_environments
-        self.observations = torch.empty(
-            (steps_per_update, total_environments) + observation_shape,
-            dtype=torch.uint8,
-            device=device,
-        )
-        self.actions = torch.empty(
-            (steps_per_update, total_environments), dtype=torch.int64, device=device
-        )
-        self.rewards = torch.empty(
-            (steps_per_update, total_environments), dtype=torch.float32, device=device
-        )
-        self.terminations = torch.empty(
-            (steps_per_update, total_environments), dtype=torch.float32, device=device
-        )
-        self.q = torch.empty(
-            (steps_per_update, total_environments, action_dimension),
-            dtype=torch.float32,
-            device=device,
-        )
-
-    def insert(
-        self,
-        step: int,
-        observation: torch.Tensor,
-        action: torch.Tensor,
-        reward: torch.Tensor,
-        termination: torch.Tensor,
-        q: torch.Tensor,
-    ):
-        self.observations[step] = observation
-        self.actions[step] = action
-        self.rewards[step] = reward
-        self.terminations[step] = termination
-        self.q[step] = q
-
-    def get_flattened_train_data(
-        self, targets: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        observation_shape = self.observation.shape[2:]
-        flat_observation = self.observation[:, : self.train_environments].reshape(
-            (-1,) + observation_shape
-        )
-        flat_actions = self.act[:, : self.train_environments].reshape(-1)
-        flat_targets = targets[:, : self.train_environments].reshape(-1)
-        return flat_observation, flat_actions, flat_targets
-
-
 def autocast():
     def decorator(callback):
         @wraps(callback)
