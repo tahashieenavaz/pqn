@@ -5,11 +5,11 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 from baloot import funnel, seed_everything, acceleration_device
-from .common import LinearEpsilon, autocast
-from .constants import PQNOptimizerType, NetworkStringType
-from .functions import epsilon_greedy_vectorized, mse_loss, lambda_returns
-from .maps import optimizer_map, network_map
-from .PQNBuffer import PQNBuffer
+from pqn.common import LinearEpsilon, autocast
+from pqn.constants import PQNOptimizerType, NetworkStringType
+from pqn.functions import epsilon_greedy_vectorized, mse_loss, lambda_returns
+from pqn.maps import optimizer_map, network_map
+from pqn.buffers import PQNBuffer
 
 
 class PQN:
@@ -34,7 +34,6 @@ class PQN:
         train_cpu_distribution: float = 0.9,
         epsilon_greedy: bool = True,
     ):
-        # 1. Compact Initialization
         for key, value in locals().items():
             if key != "self":
                 setattr(self, key, value)
@@ -240,7 +239,7 @@ class PQN:
             return_lambda=self.return_lambda,
         )
 
-    @autocast()  # Bottleneck Fix: This decorator ensures the forward pass inside runs in mixed-precision
+    @autocast()
     def __get_loss(self, observations, actions, targets) -> torch.Tensor:
         q_values_batch = self._network(observations.float())
         q_taken = q_values_batch.gather(1, actions.unsqueeze(1).long()).squeeze()
@@ -281,9 +280,7 @@ class PQN:
 
     def log(self, directory: str = "results") -> None:
         path = self.__create_directory(directory)
-        funnel(
-            f"{path}/result.json", {}
-        )  # Swapped empty builds out for immediate payload logic
+        funnel(f"{path}/result.json", {})
 
     def save(self, *, directory: str = "models"):
         self.__create_directory(directory)
