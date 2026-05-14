@@ -30,3 +30,10 @@ class PQNBuffer:
             dtype=torch.float32,
             device=device,
         )
+
+    def insert(self, step: int, action, reward, termination, q, observation):
+        self.actions[step] = action
+        self.rewards[step] = reward
+        self.terminations[step] = termination
+        self.observation[step] = observation
+        self.q[step] = q

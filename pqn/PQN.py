@@ -183,9 +183,10 @@ class PQN:
         return next_observation, rewards, terminations, infos
 
     def train(self, *, environment: str, seed: int):
+        results = SimpleNamespace(**{"loss": [], "test": [], "train": []})
         seed_everything(seed)
-        episode_returns = numpy.zeros(self.total_environments, dtype=numpy.float32)
         overall_frame_count = 0
+        episode_returns = numpy.zeros(self.total_environments, dtype=numpy.float32)
         environments = self.__make_environments(environment=environment, seed=seed)
         observation_shape = environments.train.observation_space.shape
         action_dimension = environments.train.action_space.n
@@ -224,10 +225,72 @@ class PQN:
                 )
                 train_actions = actions[: self.train_environments]
                 test_actions = actions[self.test_environments :]
+
+                (
+                    next_train_observation,
+                    train_reward,
+                    _train_termination,
+                    _train_truncation,
+                    train_info,
+                ) = environments.train.step(train_actions)
+                (
+                    next_test_observation,
+                    test_reward,
+                    _test_termination,
+                    _test_truncation,
+                    test_info,
+                ) = environments.test.step(test_actions)
+
+                next_observations = numpy.concatenate(
+                    [next_train_observation, next_test_observation], axis=0
+                )
+                rewards = numpy.concatenate([train_reward, test_reward], axis=0)
+                _terminations = numpy.concatenate(
+                    [_train_termination, _test_termination], axis=0
+                )
+                _truncations = numpy.concatenate(
+                    [_train_truncation, _test_truncation], axis=0
+                )
+                terminations = numpy.logical_or(_terminations, _truncations)
+                info = self.__get_info(train_info=train_info, test_info=test_info)
+                if "reward" in info:
+                    episode_returns += info["reward"]
+
+                if numpy.any(terminations):
+                    done_indices = numpy.where(terminations)[0]
+                    finished_scores = episode_returns[terminations]
+                    for idx, score in zip(done_indices, finished_scores):
+                        if idx < self.train_environments:
+                            results.train.append(score)
+                        else:
+                            results.test.append(score)
+                    episode_returns[terminations] = 0
+
                 pass
 
         environments.train.close()
         environments.test.close()
+
+    def __termination_handler(
+        self,
+    ):
+        pass
+
+    def __get_info(self, train_info, test_info):
+        info = {}
+        for k, v_train in train_info.items():
+            if k not in test_info:
+                continue
+            v_test = test_info[k]
+
+            if isinstance(v_train, numpy.ndarray) and isinstance(v_test, numpy.ndarray):
+                if v_train.ndim == 0:
+                    info[k] = numpy.stack([v_train, v_test])
+                else:
+                    info[k] = numpy.concatenate([v_train, v_test], axis=0)
+            else:
+                continue
+        return info
 
     @autocast()
     @torch.inference_mode()
