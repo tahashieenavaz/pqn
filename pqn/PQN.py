@@ -328,6 +328,7 @@ class PQN:
             "train_rewards": to_float_list(results.train),
             "loss": to_float_list(results.loss),
         }
+
         funnel(f"{path}/result.json", payload)
 
     def save(self, *, directory: str = "models"):
