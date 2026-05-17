@@ -8,7 +8,12 @@ from types import SimpleNamespace
 from baloot import funnel, seed_everything, acceleration_device
 from pqn.common import LinearEpsilon, autocast
 from pqn.constants import PQNOptimizerType, NetworkStringType
-from pqn.functions import epsilon_greedy_vectorized, mse_loss, lambda_returns
+from pqn.functions import (
+    epsilon_greedy_vectorized,
+    mse_loss,
+    lambda_returns,
+    to_float_list,
+)
 from pqn.maps import optimizer_map, network_map
 from pqn.buffers import PQNBuffer
 
@@ -303,7 +308,7 @@ class PQN:
         Path(path).mkdir(exist_ok=True, parents=True)
         return path
 
-    def log(self, directory: str = "results", results=None) -> None:
+    def log(self, directory: str = "results") -> None:
         path = self.__create_directory(directory)
         duration_seconds = getattr(self, "_duration_seconds", None)
 
