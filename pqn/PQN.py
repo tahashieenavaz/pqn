@@ -39,6 +39,7 @@ class PQN:
         test_environments: int = 8,
         train_cpu_distribution: float = 0.9,
         epsilon_greedy: bool = True,
+        noop: int = 30,
     ):
         for key, value in locals().items():
             if key != "self":
@@ -88,7 +89,7 @@ class PQN:
             seed=seed,
             num_threads=cpu_count,
             thread_affinity_offset=0,
-            noop_max=30,
+            noop_max=self.noop,
             frame_skip=self.frame_skip,
             repeat_action_probability=0.0,
             reward_clip=True,
@@ -255,7 +256,9 @@ class PQN:
 
     @autocast()
     @torch.inference_mode()
-    def __get_targets(self, observations: torch.Tensor, buffer: PQNBuffer):
+    def __get_targets(
+        self, observations: torch.Tensor, buffer: PQNBuffer
+    ) -> torch.Tensor:
         next_q = self._network(observations.float()).max(dim=-1).values
         max_q_seq = buffer.q.max(dim=-1).values
         q_seq_for_lambda = torch.cat([max_q_seq, next_q.unsqueeze(0)])
@@ -293,7 +296,9 @@ class PQN:
 
     @autocast()
     @torch.inference_mode()
-    def __get_actions(self, q_values: torch.Tensor, epsilon_vector: torch.Tensor):
+    def __get_actions(
+        self, q_values: torch.Tensor, epsilon_vector: torch.Tensor
+    ) -> torch.Tensor:
         if self.epsilon_greedy:
             return epsilon_greedy_vectorized(q_values, epsilon_vector)
         return q_values.argmax(dim=-1)
