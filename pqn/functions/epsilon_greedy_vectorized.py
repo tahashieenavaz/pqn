@@ -1,10 +1,9 @@
 import torch
-import numpy
 
 
 def epsilon_greedy_vectorized(
     q_values: torch.Tensor, eps: torch.Tensor
-) -> numpy.ndarray:
+) -> torch.Tensor:
     eps = eps.to(q_values.device)
     if eps.ndim == 1 and eps.shape[0] != q_values.shape[0]:
         eps = eps[0]
@@ -15,4 +14,4 @@ def epsilon_greedy_vectorized(
 
     mask = torch.rand(num_envs, device=q_values.device) < eps
     final_actions = torch.where(mask, random_actions, greedy_actions)
-    return final_actions.cpu().numpy()
+    return final_actions

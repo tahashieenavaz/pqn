@@ -9,11 +9,12 @@ class PQNBuffer:
         total_environments: int,
         observation_shape: tuple,
         action_dimension: int,
+        observation_dtype: torch.dtype,
         device,
     ):
         self.observations = torch.empty(
             (steps_per_update, total_environments) + observation_shape,
-            dtype=torch.float32,
+            dtype=observation_dtype,
             device=device,
         )
         self.actions = torch.empty(

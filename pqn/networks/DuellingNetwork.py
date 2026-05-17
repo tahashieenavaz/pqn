@@ -8,12 +8,16 @@ class DuellingNetwork(torch.nn.Module):
         super().__init__()
         self.phi = NatureDQNEncoder()
         self.value = Stream(
-            input_dimension=3136, hidden_dimension=512, output_dimension=1
+            input_dimension=3136,
+            hidden_dimension=512,
+            output_dimension=1,
+            normalization=True,
         )
         self.advantage = Stream(
             input_dimension=3136,
             hidden_dimension=512,
             output_dimension=action_dimension,
+            normalization=True,
         )
 
     def get_value(self, features: torch.Tensor) -> torch.Tensor:

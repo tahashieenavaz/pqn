@@ -2,6 +2,7 @@ import torch
 import numpy
 import envpool
 import os
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from baloot import funnel, seed_everything, acceleration_device
@@ -50,6 +51,10 @@ class PQN:
         self.total_updates = int(
             self.effective_frames / self.train_environments / self.steps_per_update
         )
+        if (self.train_environments * self.steps_per_update) % self.minibatches != 0:
+            raise ValueError(
+                "minibatches must divide train_environments * steps_per_update"
+            )
 
     @torch.inference_mode()
     def __initialize_network(self, action_dimension: int):
@@ -79,6 +84,8 @@ class PQN:
             num_threads=cpu_count,
             thread_affinity_offset=0,
             noop_max=30,
+            frame_skip=self.frame_skip,
+            repeat_action_probability=0.0,
             reward_clip=True,
             episodic_life=life,
         )
@@ -86,18 +93,23 @@ class PQN:
     def __make_environments(self, environment: str, seed: int):
         return SimpleNamespace(
             train=self.__environment_factory(
-                environment, self.train_environments, seed, self.train_cpu_count, True
+                environment=environment,
+                environments=self.train_environments,
+                cpu_count=self.train_cpu_count,
+                life=True,
+                seed=seed,
             ),
             test=self.__environment_factory(
-                environment,
-                self.test_environments,
-                seed + 1000,
-                self.test_cpu_count,
-                False,
+                environment=environment,
+                environments=self.test_environments,
+                cpu_count=self.test_cpu_count,
+                life=False,
+                seed=seed + 1000,
             ),
         )
 
     def train(self, *, environment: str, seed: int):
+        started_at = time.perf_counter()
         results = SimpleNamespace(loss=[], test=[], train=[])
         seed_everything(seed)
         overall_frame_count = 0
@@ -119,12 +131,13 @@ class PQN:
 
         buffer = PQNBuffer(
             steps_per_update=self.steps_per_update,
-            total_environments=self.total_environments,
+            total_environments=self.train_environments,
             observation_shape=observation_shape,
             action_dimension=environments.train.action_space.n,
+            observation_dtype=torch.from_numpy(train_obs).dtype,
             device=self.device,
         )
-        scaler = torch.amp.GradScaler("cuda")
+        scaler = torch.amp.GradScaler("cuda", enabled=self.device.type == "cuda")
 
         for _ in range(self.total_updates):
             self._network.eval()
@@ -135,25 +148,29 @@ class PQN:
                     )
                 )
 
-                q_values = self.__get_q_values(observations=observations.float())
+                current_observations = observations
+                q_values = self.__get_q_values(
+                    observations=current_observations.float()
+                )
                 actions = self.__get_actions(
                     q_values=q_values, epsilon_vector=epsilon_vector
                 )
+                actions_numpy = actions.cpu().numpy()
 
                 next_train_obs, train_reward, train_term, train_trunc, train_info = (
-                    environments.train.step(actions[: self.train_environments])
+                    environments.train.step(actions_numpy[: self.train_environments])
                 )
                 next_test_obs, test_reward, test_term, test_trunc, test_info = (
-                    environments.test.step(actions[self.test_environments :])
+                    environments.test.step(actions_numpy[self.train_environments :])
                 )
 
                 next_observations = numpy.concatenate(
                     [next_train_obs, next_test_obs], axis=0
                 )
-                rewards = numpy.concatenate([train_reward, test_reward], axis=0)
-                terminations = numpy.logical_or(
-                    numpy.concatenate([train_term, test_term], axis=0),
-                    numpy.concatenate([train_trunc, test_trunc], axis=0),
+                train_terminations = numpy.logical_or(train_term, train_trunc)
+                test_terminations = numpy.logical_or(test_term, test_trunc)
+                terminations = numpy.concatenate(
+                    [train_terminations, test_terminations], axis=0
                 )
 
                 info = self.__get_info(train_info, test_info)
@@ -172,37 +189,36 @@ class PQN:
                     episode_returns[terminations] = 0
 
                 observations = torch.from_numpy(next_observations).to(
-                    device=self.device, dtype=torch.float32, non_blocking=True
+                    device=self.device, non_blocking=True
                 )
 
-                buffer.observations[step] = observations
-                buffer.actions[step] = torch.as_tensor(actions, device=self.device)
+                buffer.observations[step] = current_observations[
+                    : self.train_environments
+                ]
+                buffer.actions[step] = actions[: self.train_environments]
                 buffer.rewards[step] = torch.as_tensor(
-                    rewards, dtype=torch.float32, device=self.device
+                    train_reward, dtype=torch.float32, device=self.device
                 )
                 buffer.terminations[step] = torch.as_tensor(
-                    terminations, dtype=torch.float32, device=self.device
+                    train_terminations, dtype=torch.float32, device=self.device
                 )
-                buffer.q[step] = q_values
+                buffer.q[step] = q_values[: self.train_environments]
 
                 overall_frame_count += self.train_environments
 
-            targets = self.__get_targets(buffer=buffer, observations=observations)
+            targets = self.__get_targets(
+                buffer=buffer, observations=observations[: self.train_environments]
+            )
 
-            flat_obs = (
-                buffer.observations[:, : self.train_environments]
-                .contiguous()
-                .view((-1,) + observation_shape)
-            )
-            flat_act = (
-                buffer.actions[:, : self.train_environments].contiguous().view(-1)
-            )
-            flat_tgt = targets[:, : self.train_environments].contiguous().view(-1)
+            flat_obs = buffer.observations.contiguous().view((-1,) + observation_shape)
+            flat_act = buffer.actions.contiguous().view(-1)
+            flat_tgt = targets.contiguous().view(-1)
 
             self._network.train()
             batch_size = int(self.train_environments * self.steps_per_update)
             mini_size = batch_size // self.minibatches
 
+            last_loss = None
             for _ in range(self.epochs):
                 indices = torch.randperm(batch_size, device=self.device)
                 for start in range(0, batch_size, mini_size):
@@ -220,16 +236,22 @@ class PQN:
                     torch.nn.utils.clip_grad_norm_(self._network.parameters(), 10.0)
                     scaler.step(self._optimizer)
                     scaler.update()
-                    results.loss.append(loss.item())
+                    last_loss = loss.detach()
+
+            if last_loss is not None:
+                results.loss.append(float(last_loss.cpu()))
 
         environments.train.close()
         environments.test.close()
+        duration_seconds = time.perf_counter() - started_at
+        self._results = results
+        self._duration_seconds = duration_seconds
         return results, self._network
 
     @autocast()
     @torch.inference_mode()
-    def __get_targets(self, observations, buffer):
-        next_q = self._network(observations).max(dim=-1).values
+    def __get_targets(self, observations: torch.Tensor, buffer: PQNBuffer):
+        next_q = self._network(observations.float()).max(dim=-1).values
         max_q_seq = buffer.q.max(dim=-1).values
         q_seq_for_lambda = torch.cat([max_q_seq, next_q.unsqueeze(0)])
         return lambda_returns(
@@ -241,9 +263,11 @@ class PQN:
         )
 
     @autocast()
-    def __get_loss(self, observations, actions, targets) -> torch.Tensor:
+    def __get_loss(
+        self, observations: torch.Tensor, actions: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
         q_values_batch = self._network(observations.float())
-        q_taken = q_values_batch.gather(1, actions.unsqueeze(1).long()).squeeze()
+        q_taken = q_values_batch.gather(1, actions.unsqueeze(1).long()).squeeze(-1)
         return 0.5 * mse_loss(q_taken, targets)
 
     def __get_info(self, train_info, test_info):
@@ -267,7 +291,7 @@ class PQN:
     def __get_actions(self, q_values: torch.Tensor, epsilon_vector: torch.Tensor):
         if self.epsilon_greedy:
             return epsilon_greedy_vectorized(q_values, epsilon_vector)
-        return q_values.argmax(dim=-1).cpu().numpy()
+        return q_values.argmax(dim=-1)
 
     @autocast()
     @torch.inference_mode()
@@ -279,9 +303,22 @@ class PQN:
         Path(path).mkdir(exist_ok=True, parents=True)
         return path
 
-    def log(self, directory: str = "results") -> None:
+    def log(self, directory: str = "results", results=None) -> None:
         path = self.__create_directory(directory)
-        funnel(f"{path}/result.json", {})
+        duration_seconds = getattr(self, "_duration_seconds", None)
+
+        results = results or getattr(self, "_results", None)
+        if results is None:
+            raise ValueError("No results to log. Run train() first or pass results=...")
+
+        payload = {
+            "duration_seconds": duration_seconds,
+            "duration_hours": duration_seconds / 3600,
+            "test_rewards": to_float_list(results.test),
+            "train_rewards": to_float_list(results.train),
+            "loss": to_float_list(results.loss),
+        }
+        funnel(f"{path}/result.json", payload)
 
     def save(self, *, directory: str = "models"):
         self.__create_directory(directory)

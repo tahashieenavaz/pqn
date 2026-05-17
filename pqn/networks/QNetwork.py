@@ -4,10 +4,15 @@ from ..modules import NatureDQNEncoder
 
 
 class QNetwork(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, action_dimension: int):
         super().__init__()
         self.phi = NatureDQNEncoder()
-        self.q = Stream(input_dimension=3136, hidden_dimension=512, output_dimension=1)
+        self.q = Stream(
+            input_dimension=3136,
+            hidden_dimension=512,
+            output_dimension=action_dimension,
+            normalization=True,
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         features = self.phi(x / 255.0)
