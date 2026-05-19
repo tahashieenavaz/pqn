@@ -26,10 +26,10 @@ def autocast():
     def decorator(callback):
         @wraps(callback)
         def wrapper(self, *args, **kwargs):
-            with torch.autocast(
-                device_type=self.device.type,
-                dtype=torch.float16,
-            ):
+            if self.device.type != "cuda":
+                return callback(self, *args, **kwargs)
+
+            with torch.autocast(device_type=self.device.type, dtype=torch.float16):
                 return callback(self, *args, **kwargs)
 
         return wrapper
